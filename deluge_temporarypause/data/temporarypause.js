@@ -135,24 +135,52 @@ Deluge.ux.preferences.TemporaryPausePage = Ext.extend(Ext.Panel, {
             }],
         });
 
-        this.on('show', this.refreshPage, this);
+        this.on('show', this.onPageShow, this);
+        this.on('hide', this.onPageHide, this);
+        this.on('beforedestroy', this.onPageHide, this);
+    },
+
+    onPageShow: function () {
+        // Load config once on show (checkbox state + test mode visibility)
+        deluge.client.temporarypause.get_config({
+            success: function (config) {
+                this.testModeCheck.setValue(config.show_test_mode);
+                tp_applyTestMode(config.show_test_mode);
+            },
+            scope: this,
+        });
+
+        // Refresh status immediately, then every second while visible
+        this.refreshStatus();
+        this.statusTask = Ext.TaskMgr.start({
+            run: this.refreshStatus,
+            scope: this,
+            interval: 1000,
+        });
+    },
+
+    onPageHide: function () {
+        if (this.statusTask) {
+            Ext.TaskMgr.stop(this.statusTask);
+            this.statusTask = null;
+        }
     },
 
     onPauseSession: function (duration) {
         deluge.client.temporarypause.pause_session(duration, {
-            success: function () { this.refreshPage(); },
+            success: function () { this.refreshStatus(); },
             scope: this,
         });
     },
 
     onCancelGlobal: function () {
         deluge.client.temporarypause.cancel_session_pause({
-            success: function () { this.refreshPage(); },
+            success: function () { this.refreshStatus(); },
             scope: this,
         });
     },
 
-    refreshPage: function () {
+    refreshStatus: function () {
         deluge.client.temporarypause.get_status({
             success: function (status) {
                 if (status.global_paused) {
@@ -165,14 +193,6 @@ Deluge.ux.preferences.TemporaryPausePage = Ext.extend(Ext.Panel, {
                     this.cancelGlobalBtn.hide();
                 }
                 this.doLayout();
-            },
-            scope: this,
-        });
-
-        deluge.client.temporarypause.get_config({
-            success: function (config) {
-                this.testModeCheck.setValue(config.show_test_mode);
-                tp_applyTestMode(config.show_test_mode);
             },
             scope: this,
         });
