@@ -11,6 +11,14 @@ Pause downloads and uploads globally or per-torrent for a fixed duration (2/4/8/
 
 Supported durations: **2 hours · 4 hours · 8 hours · 16 hours · 1 day · 2 days**
 
+## Screenshots
+
+### Preferences — Global Pause
+![Preferences page showing global temporary pause session controls](preferences_temp_pause_session.png)
+
+### Torrent Context Menu — Per-Torrent Pause
+![Individual torrent right-click context menu with Temporary Pause submenu](individual_torrent_temp_pause.png)
+
 ## Requirements
 
 - Deluge 2.x
