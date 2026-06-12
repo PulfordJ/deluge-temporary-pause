@@ -136,8 +136,7 @@ Deluge.ux.preferences.TemporaryPausePage = Ext.extend(Ext.Panel, {
 // --- Context menu items for per-torrent pause ---
 
 function tp_getSelectedIds() {
-    var selections = deluge.torrents.grid.getSelectionModel().getSelections();
-    return Ext.pluck(selections, 'id');
+    return deluge.torrents.getSelectedIds();
 }
 
 function tp_buildTorrentPauseMenu() {
@@ -185,9 +184,9 @@ Deluge.plugins.TemporaryPausePlugin = Ext.extend(Deluge.Plugin, {
         );
 
         // Add separator + submenu to torrent right-click menu
-        this.menuSep = deluge.menus.torrentMenu.addSeparator();
+        this.menuSep = deluge.menus.torrent.addSeparator();
         this.torrentPauseMenu = tp_buildTorrentPauseMenu();
-        this.menuItem = deluge.menus.torrentMenu.add({
+        this.menuItem = deluge.menus.torrent.add({
             text: _('Temporary Pause'),
             menu: this.torrentPauseMenu,
         });
@@ -196,11 +195,11 @@ Deluge.plugins.TemporaryPausePlugin = Ext.extend(Deluge.Plugin, {
     onDisable: function () {
         deluge.preferences.removePage(this.prefsPage);
         if (this.menuItem) {
-            deluge.menus.torrentMenu.remove(this.menuItem);
+            deluge.menus.torrent.remove(this.menuItem);
             this.menuItem = null;
         }
         if (this.menuSep) {
-            deluge.menus.torrentMenu.remove(this.menuSep);
+            deluge.menus.torrent.remove(this.menuSep);
             this.menuSep = null;
         }
         if (this.torrentPauseMenu) {
