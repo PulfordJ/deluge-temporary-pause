@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 DEFAULT_PREFS = {
     'global_pause_until': 0.0,
     'torrent_pauses': {},
+    'show_test_mode': False,
 }
 
 
@@ -151,6 +152,19 @@ class Core(CorePluginBase):
         if torrent_id in tm.torrents:
             tm.torrents[torrent_id].resume()
         log.info('TemporaryPause: torrent %s pause cancelled', torrent_id)
+        return True
+
+    @export
+    def get_config(self):
+        """Return plugin configuration."""
+        return {'show_test_mode': self.config['show_test_mode']}
+
+    @export
+    def set_config(self, config):
+        """Update plugin configuration."""
+        for key in config:
+            self.config[key] = config[key]
+        self.config.save()
         return True
 
     @export

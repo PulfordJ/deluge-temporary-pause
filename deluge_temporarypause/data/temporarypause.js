@@ -3,7 +3,7 @@
  *   Web UI for the TemporaryPause plugin.
  *
  * Adds:
- *   - A Preferences page with global pause controls and status
+ *   - A Preferences page with global pause controls, status, and test mode toggle
  *   - A right-click context menu "Temporary Pause" submenu on torrents
  */
 
@@ -19,6 +19,15 @@ var TP_DURATIONS = [
     { label: '1 Day',    seconds: 86400  },
     { label: '2 Days',   seconds: 172800 },
 ];
+
+// Module-level references so the prefs page and plugin can both control visibility
+var tp10sGlobalBtn = null;
+var tp10sMenuItem  = null;
+
+function tp_applyTestMode(enabled) {
+    if (tp10sGlobalBtn) tp10sGlobalBtn.setVisible(enabled);
+    if (tp10sMenuItem)  tp10sMenuItem.setVisible(enabled);
+}
 
 function tp_formatRemaining(seconds) {
     if (seconds <= 0) return 'none';
@@ -93,24 +102,57 @@ Deluge.ux.preferences.TemporaryPausePage = Ext.extend(Ext.Panel, {
             items: buttons,
         });
 
-        this.on('show', this.refreshStatus, this);
+        // 10s test button lives outside the compositefield so it can be shown/hidden
+        tp10sGlobalBtn = this.globalPanel.add({
+            xtype: 'button',
+            text: _('10 Seconds (test)'),
+            style: 'margin: 3px;',
+            hidden: true,
+            handler: function () { this.onPauseSession(10); },
+            scope: this,
+        });
+
+        // Test mode toggle
+        this.add({
+            xtype: 'fieldset',
+            title: _('Developer Options'),
+            autoHeight: true,
+            border: true,
+            items: [{
+                xtype: 'checkbox',
+                fieldLabel: _('Enable 10-second test option'),
+                ref: '../testModeCheck',
+                checked: false,
+                listeners: {
+                    check: function (cb, checked) {
+                        deluge.client.temporarypause.set_config(
+                            { show_test_mode: checked },
+                            { success: function () {} }
+                        );
+                        tp_applyTestMode(checked);
+                    },
+                },
+            }],
+        });
+
+        this.on('show', this.refreshPage, this);
     },
 
     onPauseSession: function (duration) {
         deluge.client.temporarypause.pause_session(duration, {
-            success: function () { this.refreshStatus(); },
+            success: function () { this.refreshPage(); },
             scope: this,
         });
     },
 
     onCancelGlobal: function () {
         deluge.client.temporarypause.cancel_session_pause({
-            success: function () { this.refreshStatus(); },
+            success: function () { this.refreshPage(); },
             scope: this,
         });
     },
 
-    refreshStatus: function () {
+    refreshPage: function () {
         deluge.client.temporarypause.get_status({
             success: function (status) {
                 if (status.global_paused) {
@@ -126,28 +168,30 @@ Deluge.ux.preferences.TemporaryPausePage = Ext.extend(Ext.Panel, {
             },
             scope: this,
         });
+
+        deluge.client.temporarypause.get_config({
+            success: function (config) {
+                this.testModeCheck.setValue(config.show_test_mode);
+                tp_applyTestMode(config.show_test_mode);
+            },
+            scope: this,
+        });
     },
 
-    // Called by Preferences dialog when user clicks Apply/OK
     onApply: function () {},
     onOk: function () {},
 });
 
 // --- Context menu items for per-torrent pause ---
 
-function tp_getSelectedIds() {
-    return deluge.torrents.getSelectedIds();
-}
-
 function tp_buildTorrentPauseMenu() {
-    var items = [];
+    var regularItems = [];
     Ext.each(TP_DURATIONS, function (d) {
-        items.push({
+        regularItems.push({
             text: d.label,
             handler: (function (secs) {
                 return function () {
-                    var ids = tp_getSelectedIds();
-                    Ext.each(ids, function (id) {
+                    Ext.each(deluge.torrents.getSelectedIds(), function (id) {
                         deluge.client.temporarypause.pause_torrent(id, secs, {
                             success: function () {},
                         });
@@ -157,20 +201,38 @@ function tp_buildTorrentPauseMenu() {
         });
     });
 
-    items.push('-');
-    items.push({
-        text: _('Cancel Temporary Pause'),
-        handler: function () {
-            var ids = tp_getSelectedIds();
-            Ext.each(ids, function (id) {
-                deluge.client.temporarypause.cancel_torrent_pause(id, {
-                    success: function () {},
-                });
-            });
-        },
+    var menu = new Ext.menu.Menu({
+        items: [
+            {
+                text: _('10 Seconds (test)'),
+                hidden: true,
+                handler: function () {
+                    Ext.each(deluge.torrents.getSelectedIds(), function (id) {
+                        deluge.client.temporarypause.pause_torrent(id, 10, {
+                            success: function () {},
+                        });
+                    });
+                },
+            },
+            '-',
+        ].concat(regularItems).concat([
+            '-',
+            {
+                text: _('Cancel Temporary Pause'),
+                handler: function () {
+                    Ext.each(deluge.torrents.getSelectedIds(), function (id) {
+                        deluge.client.temporarypause.cancel_torrent_pause(id, {
+                            success: function () {},
+                        });
+                    });
+                },
+            },
+        ]),
     });
 
-    return new Ext.menu.Menu({ items: items });
+    // First item in the menu is the 10s test entry
+    tp10sMenuItem = menu.items.get(0);
+    return menu;
 }
 
 // --- Plugin registration ---
@@ -190,9 +252,19 @@ Deluge.plugins.TemporaryPausePlugin = Ext.extend(Deluge.Plugin, {
             text: _('Temporary Pause'),
             menu: this.torrentPauseMenu,
         });
+
+        // Apply saved test-mode state to the freshly-built menu item
+        deluge.client.temporarypause.get_config({
+            success: function (config) {
+                tp_applyTestMode(config.show_test_mode);
+            },
+        });
     },
 
     onDisable: function () {
+        tp10sGlobalBtn = null;
+        tp10sMenuItem  = null;
+
         deluge.preferences.removePage(this.prefsPage);
         if (this.menuItem) {
             deluge.menus.torrent.remove(this.menuItem);
