@@ -86,6 +86,13 @@ class Core(CorePluginBase):
         self.config['global_pause_until'] = 0.0
         self.config.save()
         component.get('Core').resume_session()
+        # Re-pause any torrents that still have an active per-torrent timer so
+        # they are not prematurely resumed by the session-level resume above.
+        now = time.time()
+        tm = component.get('TorrentManager')
+        for torrent_id, until in dict(self.config['torrent_pauses']).items():
+            if until > now and torrent_id in tm.torrents:
+                tm.torrents[torrent_id].pause()
         log.info('TemporaryPause: global pause expired, resuming session')
 
     def _on_torrent_resume(self, torrent_id):
@@ -94,6 +101,11 @@ class Core(CorePluginBase):
         torrent_pauses.pop(torrent_id, None)
         self.config['torrent_pauses'] = torrent_pauses
         self.config.save()
+
+        # Don't resume the torrent if the whole session is still globally paused.
+        if self.config['global_pause_until'] > time.time():
+            log.info('TemporaryPause: torrent %s timer expired but session still globally paused', torrent_id)
+            return
 
         tm = component.get('TorrentManager')
         if torrent_id in tm.torrents:
@@ -121,6 +133,12 @@ class Core(CorePluginBase):
         self.config['global_pause_until'] = 0.0
         self.config.save()
         component.get('Core').resume_session()
+        # Re-pause torrents that still have active per-torrent timers.
+        now = time.time()
+        tm = component.get('TorrentManager')
+        for torrent_id, until in dict(self.config['torrent_pauses']).items():
+            if until > now and torrent_id in tm.torrents:
+                tm.torrents[torrent_id].pause()
         log.info('TemporaryPause: global pause cancelled')
         return True
 

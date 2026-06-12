@@ -43,7 +43,7 @@ function tp_formatRemaining(seconds) {
 
 Deluge.ux.preferences.TemporaryPausePage = Ext.extend(Ext.Panel, {
     border: false,
-    title: _('Temporary Pause'),
+    title: _('Temporary Pause (Session)'),
     header: false,
     layout: 'form',
 
